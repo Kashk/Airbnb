@@ -80,6 +80,8 @@ public class Scraper {
 			scrapeStates(GROUP_NINE);
 		} else if (selection.equals("10")) {
 			scrapeStates(GROUP_TEN);
+		} else if (selection.length() == 2) {
+			scrapeState(selection);
 		} else {
 			System.out.println("Invalid argument passed in. Valid arguments: all, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10");
 			System.out.println("Application exiting.");
@@ -162,7 +164,7 @@ public class Scraper {
 			int month = convertToInt(fileNameParts[1]);
 			int year = convertToInt(fileNameParts[2]);
 
-			Calendar calendar = new GregorianCalendar(year, month, 1);
+			Calendar calendar = new GregorianCalendar(year, month - 1, 1);
 			int numDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
 			String checkInDate = year + "-" + month + "-01";
 			String checkOutDate = year + "-" + month + "-" + numDays;
@@ -181,9 +183,10 @@ public class Scraper {
 			airbnb.setYear(year);
 
 			airbnb.setAveragePrice(getAveragePriceFromDocumentComments(document));
-
+			airbnb.setIsMonthlyPriceType(foundMonthlyPriceTypeFromDocumentComments(document));
+			
 			airbnb.print();
-
+			
 			saveAirbnbToDatabase(airbnb);
 		}
 		System.out.println("Finished parsing " + fileName);
@@ -228,6 +231,36 @@ public class Scraper {
 
 		return averagePrice;
 	}
+	
+	/**
+	 * @title foundMonthlyPriceTypeFromDocumentComments
+	 * @param document<Node>
+	 * @return true if "price_type":"monthly" found in document<Node>, false otherwise
+	 */
+	private static boolean foundMonthlyPriceTypeFromDocumentComments(Document document) {
+		boolean priceType = false;
+		Elements scripts = document.getElementsByTag("script");
+
+		for (int i = 0; i < scripts.size() && !priceType; ++i) {
+			List<DataNode> scriptDataNodes = scripts.get(i).dataNodes();
+			for (int j = 0; j < scriptDataNodes.size() && !priceType; ++j) {
+				priceType = foundPriceTypeMonthlyFromText(scriptDataNodes.get(j).getWholeData());
+			}
+		}
+		
+		return priceType;
+	}
+	
+	/**
+	 * @title foundPriceTypeMonthlyFromText
+	 * @param text<String>
+	 * @return true if "price_type":"monthly" found in text, false otherwise
+	 */
+	public static boolean foundPriceTypeMonthlyFromText(String text) {
+		String searchText = "\"price_type\":\"monthly\"";
+		
+		return text.contains(searchText);
+	}
 
 	/**
 	 * @title saveAirbnbToDatabase
@@ -243,7 +276,7 @@ public class Scraper {
 		// 1
 		preparedStatement.setInt(1, airbnb.getZipcode());
 		// 2
-		if (airbnb.getAveragePrice() <= 0) {
+		if ((airbnb.getAveragePrice() <= 0) || !airbnb.isMonthlyPriceType()) {
 			preparedStatement.setNull(2, java.sql.Types.INTEGER);
 		} else {
 			preparedStatement.setInt(2, airbnb.getAveragePrice());

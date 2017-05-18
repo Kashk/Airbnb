@@ -8,7 +8,7 @@ public class Airbnb {
 	private int _month;
 	private int _year;
 	private String _url;
-	private String _priceType;
+	private boolean _isMonthlyPriceType;
 	private Timestamp _crawlTime;
 	
 	public Airbnb() {
@@ -17,7 +17,7 @@ public class Airbnb {
 		_month = -1;
 		_year = -1;
 		_url = "";
-		_priceType = "";
+		_isMonthlyPriceType = false;
 		_crawlTime = null;
 	}
 	
@@ -80,13 +80,13 @@ public class Airbnb {
 		}
 	}
 	
-	public String getPriceType() {
-		return _priceType;
+	public boolean isMonthlyPriceType() {
+		return _isMonthlyPriceType;
 	}
 	
-	public void setPriceType(String value) {
-		if (!_priceType.equals(value)) {
-			_priceType = value;
+	public void setIsMonthlyPriceType(boolean value) {
+		if (_isMonthlyPriceType != value) {
+			_isMonthlyPriceType = value;
 		}
 	}
 	
@@ -97,6 +97,6 @@ public class Airbnb {
 		System.out.println("Year: " + getYear());
 		System.out.println("Url: " + getUrl());
 		System.out.println("CrawlTime: " + getCrawlTime());
-		System.out.println("Price Type: " + getPriceType());
+		System.out.println("Price Type: " + isMonthlyPriceType());
 	}
 }

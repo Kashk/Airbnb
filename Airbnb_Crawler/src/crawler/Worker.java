@@ -81,8 +81,8 @@ public class Worker implements Runnable {
 			int numDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
 			String checkInDate = _year + "-" + _month + "-01";
 			String checkOutDate = _year + "-" + _month + "-" + numDays;
-
-			String url = "https://www.airbnb.com/s/" + zipcode + "/homes?checkin=" + checkInDate + "&checkout="
+			String searchParameter = zipcode + "--" + _state + "--USA";
+			String url = "https://www.airbnb.com/s/" + searchParameter + "/homes?checkin=" + checkInDate + "&checkout="
 					+ checkOutDate;
 			System.out.println(url);
 
