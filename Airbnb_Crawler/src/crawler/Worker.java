@@ -24,17 +24,17 @@ public class Worker implements Runnable {
 	Connection _connection;
 	String _name;
 	String _state;
-	ArrayList<String> _zipcodes;
+	ArrayList<CityZipCounty> _cityZipCounties;
 	int _month;
 	int _year;
 	String _proxyAddress;
 	HtmlUnitDriver _driver;
 
-	public Worker(String name, String state, ArrayList<String> zipcodes, int month, int year, HtmlUnitDriver driver,
+	public Worker(String name, String state, ArrayList<CityZipCounty> cityZipcodes, int month, int year, HtmlUnitDriver driver,
 			String proxyAddress) {
 		_name = name;
 		_state = state;
-		_zipcodes = zipcodes;
+		_cityZipCounties = cityZipcodes;
 		_month = month;
 		_year = year;
 		_driver = driver;
@@ -47,10 +47,13 @@ public class Worker implements Runnable {
 			System.out.println(_name + " using proxy address: " + _proxyAddress);
 			_connection = getConnection();
 			int count = 0;
-			for (count = 0; count < _zipcodes.size(); ++count) {
-				String zipcode = _zipcodes.get(count);
-				crawlZipcode(zipcode);
-				System.out.println(_zipcodes.size() - count - 1 + " zipcodes remaining.");
+			for (count = 0; count < _cityZipCounties.size(); ++count) {
+				String city = _cityZipCounties.get(count).getCity();
+				String zipcode = _cityZipCounties.get(count).getZipcode();
+				String county = _cityZipCounties.get(count).getCounty();
+				
+				crawlZipcode(city, zipcode, county);
+				System.out.println(_cityZipCounties.size() - count - 1 + " zipcodes remaining.");
 			}
 			_connection.close();
 		} catch (InterruptedException e) {
@@ -66,14 +69,13 @@ public class Worker implements Runnable {
 	}
 
 	/**
-	 * @title crawlZipcodeByMonthYear
-	 * @param state<String>,
-	 *            month<int>, year<int>
+	 * @title crawlZipcode
+	 * @param city<String>, zipcode<String>
 	 * @return
 	 * @desc Extracts airbnb's average-price/month for zipcode for month<int>,
 	 *       year<int> and stores extracted data into database.
 	 */
-	public void crawlZipcode(String zipcode) throws Exception {
+	public void crawlZipcode(String city, String zipcode, String county) throws Exception {
 		try {
 			System.out.println(_name + " crawling " + zipcode + ", " + _month + "/" + _year);
 
@@ -81,12 +83,12 @@ public class Worker implements Runnable {
 			int numDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
 			String checkInDate = _year + "-" + _month + "-01";
 			String checkOutDate = _year + "-" + _month + "-" + numDays;
-			String searchParameter = zipcode + "--" + _state + "--USA";
+			String searchParameter = city + "--" + _state + "--" + county + "--USA";
 			String url = "https://www.airbnb.com/s/" + searchParameter + "/homes?checkin=" + checkInDate + "&checkout="
 					+ checkOutDate;
 			System.out.println(url);
 
-			savePageSourceFromListingUrl(zipcode, url);
+			savePageSourceFromListingUrl(zipcode, city, url);
 
 			System.out.println("Finished crawling " + zipcode + ", " + _month + "/" + _year);
 		} catch (Exception e) {
@@ -128,7 +130,7 @@ public class Worker implements Runnable {
 	 * @desc Gets the page source from the url<String> and writes it to a text
 	 *       file @ "/airbnb/pagesources/state/zipcode_month_year.txt"
 	 */
-	public void savePageSourceFromListingUrl(String zipcode, String url) throws Exception {
+	public void savePageSourceFromListingUrl(String zipcode, String city, String url) throws Exception {
 		System.out.println("Entered savePageSourceFromListingUrl");
 
 		_driver.get(url);
@@ -139,11 +141,12 @@ public class Worker implements Runnable {
 		int year = c.get(Calendar.YEAR);
 		int month = c.get(Calendar.MONTH) + 1;
 		String yearMonthDirectory = year + "_" + String.format("%02d", month);
+		String modifiedCity = city.replaceAll(" ", "-");
 
-		String fileName = zipcode + "_" + _month + "_" + _year + ".txt";
+		String fileName = zipcode + "_" + modifiedCity + "_" + _month + "_" + _year + ".txt";
 		String directory = "./pagesources/" + yearMonthDirectory + "/" + _state + "/";
 		writeStringToFile(directory, fileName, pageSource);
-		parseAndSaveDataFromPageSource(zipcode, url, pageSource);
+		parseAndSaveDataFromPageSource(zipcode, city, url, pageSource);
 	}
 
 	/**
@@ -167,18 +170,20 @@ public class Worker implements Runnable {
 	 * @return
 	 * @desc Parses file<File> to get airbnb data and saves data to database
 	 */
-	public void parseAndSaveDataFromPageSource(String zipcode, String url, String pageSource) throws Exception {
+	public void parseAndSaveDataFromPageSource(String zipcode, String city, String url, String pageSource) throws Exception {
 		Document document = Jsoup.parse(pageSource);
 
 		Airbnb airbnb = new Airbnb();
 		airbnb.setCrawlTime(getCurrentTimestamp());
 		airbnb.setZipcode(convertToInt(zipcode));
+		airbnb.setCity(city);
+		airbnb.setState(_state);
 		airbnb.setUrl(url);
 		airbnb.setMonth(_month);
 		airbnb.setYear(_year);
 
 		airbnb.setAveragePrice(getAveragePriceFromDocumentComments(document));
-		airbnb.setIsMonthlyPriceType(true); // FIXME: Set to true because function foundMonthlyPriceTypeFromDocumentComments not working correctly
+		airbnb.setIsMonthlyPriceType(foundMonthlyPriceTypeFromDocumentComments(document));
 		
 		airbnb.print();
 
@@ -264,24 +269,28 @@ public class Worker implements Runnable {
 	public void saveAirbnbToDatabase(Airbnb airbnb) throws Exception {
 		System.out.println("Entered saveAirbnbToDatabase");
 
-		String sqlStatement = "INSERT INTO airbnb(zipcode, average_price, month, year, url, crawl_time) VALUES(?,?,?,?,?,?)";
+		String sqlStatement = "INSERT INTO airbnb2(zipcode, city, state, average_price, month, year, url, crawl_time) VALUES(?,?,?,?,?,?,?,?)";
 		PreparedStatement preparedStatement = _connection.prepareStatement(sqlStatement);
 		// 1
 		preparedStatement.setInt(1, airbnb.getZipcode());
 		// 2
-		if ((airbnb.getAveragePrice() <= 0) || !airbnb.isMonthlyPriceType()) {
-			preparedStatement.setNull(2, java.sql.Types.INTEGER);
-		} else {
-			preparedStatement.setInt(2, airbnb.getAveragePrice());
-		}
+		preparedStatement.setString(2,  airbnb.getCity());
 		// 3
-		preparedStatement.setInt(3, airbnb.getMonth());
+		preparedStatement.setString(3,  airbnb.getState());
 		// 4
-		preparedStatement.setInt(4, airbnb.getYear());
+		if ((airbnb.getAveragePrice() <= 0) || !airbnb.isMonthlyPriceType()) {
+			preparedStatement.setNull(4, java.sql.Types.INTEGER);
+		} else {
+			preparedStatement.setInt(4, airbnb.getAveragePrice());
+		}
 		// 5
-		preparedStatement.setString(5, airbnb.getUrl());
+		preparedStatement.setInt(5, airbnb.getMonth());
 		// 6
-		preparedStatement.setTimestamp(6, airbnb.getCrawlTime());
+		preparedStatement.setInt(6, airbnb.getYear());
+		// 7
+		preparedStatement.setString(7, airbnb.getUrl());
+		// 8
+		preparedStatement.setTimestamp(8, airbnb.getCrawlTime());
 		preparedStatement.executeUpdate();
 		preparedStatement.close();
 	}

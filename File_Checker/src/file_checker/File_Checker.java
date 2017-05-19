@@ -2,6 +2,8 @@ package file_checker;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -128,16 +130,23 @@ public class File_Checker {
 
 	public static void checkIfFileIsCorrect(String state, File file) throws Exception {
 		String fileName = file.getName();
+		String[] fileNameParts = fileName.split("_");
 
-		String pageSource = FileUtils.readFileToString(file, "UTF-8");
+		if (fileNameParts.length != 4) {
+			System.out.println("Invalid file: " + fileName);
+		} else {
+			String city = fileNameParts[1];
+			
+			String pageSource = FileUtils.readFileToString(file, "UTF-8");
 
-		if (!isCorrectPageSource(state, pageSource)) {
-			System.out.println(fileName);
-			_count++;
+			if (!isCorrectPageSource(city, state, pageSource)) {
+				System.out.println(fileName);
+				_count++;
+			}
 		}
 	}
 
-	public static boolean isCorrectPageSource(String state, String pageSource) {
+	public static boolean isCorrectPageSource(String city, String state, String pageSource) {
 		Document document = Jsoup.parse(pageSource);
 		// meta id="english-canonical-url"
 		// content="/s/Moody--AL?sublets=monthly">
@@ -145,14 +154,10 @@ public class File_Checker {
 
 		if (metaLinks.size() > 0) {
 			Element metaLink = metaLinks.first();
-//			System.out.println("metaLink: " + metaLink);
+			String stringToCheck = metaLink.toString();
+			String searchString = city + "--" + state + "?";
 
-//			String content = metaLink.select("content").toString();
-//			System.out.println("content: " + content);
-
-			String substringToCheck = StringUtils.substringBetween(metaLink.toString(), "--", "?");
-
-			return state.equalsIgnoreCase(substringToCheck);
+			return stringToCheck.contains(searchString);
 		} else {
 			return false;
 		}

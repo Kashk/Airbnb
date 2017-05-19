@@ -1,5 +1,5 @@
-﻿DROP TABLE IF EXISTS airbnb;
-CREATE TABLE airbnb (
+﻿DROP TABLE IF EXISTS airbnb2;
+CREATE TABLE airbnb2 (
 	zipcode int(5) UNSIGNED ZEROFILL NOT NULL,
 	average_price int(10) DEFAULT NULL,
 	month int(10) NOT NULL,
@@ -9,8 +9,11 @@ CREATE TABLE airbnb (
 	PRIMARY KEY (zipcode, crawl_time, month, year)
 );
 
+DROP TABLE IF EXISTS airbnb2;
 CREATE TABLE airbnb2 (
 	zipcode int(5) UNSIGNED ZEROFILL NOT NULL,
+	city varchar(50) DEFAULT NULL,
+	state varchar(50) DEFAULT NULL,
 	average_price int(10) DEFAULT NULL,
 	month int(10) NOT NULL,
 	year int(10) NOT NULL,
@@ -27,6 +30,27 @@ JOIN airbnb3 as a2
 ON a1.zipcode = a2.zipcode AND a1.month = a2.month AND a1.year = a2.year AND a1.crawl_time > a2.crawl_time;
 
 SELECT COUNT(*)
-FROM airbnb3 as a1
-JOIN airbnb3 as a2
+FROM airbnb as a1
+JOIN airbnb as a2
 ON a1.zipcode = a2.zipcode AND a1.month = a2.month AND a1.year = a2.year AND a1.crawl_time > a2.crawl_time;
+
+SELECT *
+FROM cities_extended as c1
+JOIN cities_extended as c2
+ON c1.zip = c2.zip AND c1.city != c2.city;
+
+select * from table where email in (
+    select email from table
+    group by email having count(*) > 1
+)
+
+SELECT *
+FROM cities_extended
+WHERE zip IN (
+	SELECT zip FROM cities_extended
+	GROUP BY zip HAVING COUNT(*) > 1
+);
+
+SELECT *
+FROM cities_extended
+GROUP BY city HAVING COUNT(*) > 1;

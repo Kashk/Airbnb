@@ -137,21 +137,21 @@ public class Crawler {
 					java.sql.ResultSet.CONCUR_READ_ONLY);
 			statement.setFetchSize(Integer.MIN_VALUE);
 			ResultSet result = statement
-					.executeQuery("SELECT zip FROM cities_extended WHERE state_code='" + state + "' order by zip");
+					.executeQuery("SELECT city, zip, county FROM cities_extended WHERE state_code='" + state + "' order by zip");
 			// ResultSet result = statement.executeQuery(
 			// "SELECT zip_code FROM zipcodes_bystate WHERE state='" + state +
 			// "' order by zip_code");
 
-			ArrayList<String> bucket1 = new ArrayList<String>();
-			ArrayList<String> bucket2 = new ArrayList<String>();
-			ArrayList<String> bucket3 = new ArrayList<String>();
-			ArrayList<String> bucket4 = new ArrayList<String>();
-			ArrayList<String> bucket5 = new ArrayList<String>();
-			ArrayList<String> bucket6 = new ArrayList<String>();
-			ArrayList<String> bucket7 = new ArrayList<String>();
-			ArrayList<String> bucket8 = new ArrayList<String>();
-			ArrayList<String> bucket9 = new ArrayList<String>();
-			ArrayList<String> bucket10 = new ArrayList<String>();
+			ArrayList<CityZipCounty> bucket1 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket2 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket3 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket4 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket5 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket6 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket7 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket8 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket9 = new ArrayList<CityZipCounty>();
+			ArrayList<CityZipCounty> bucket10 = new ArrayList<CityZipCounty>();
 //			List<String> bucket11 = new ArrayList<String>();
 //			List<String> bucket12 = new ArrayList<String>();
 //			List<String> bucket13 = new ArrayList<String>();
@@ -161,41 +161,44 @@ public class Crawler {
 			int counter = 0;
 
 			while (result.next()) {
+				String city = result.getString("city");
 				String zipcode = result.getString("zip");
-				// int zipcode = convertToInt(result.getString("zip_code"));
+				String county = result.getString("county");
+				
+				CityZipCounty cityZipCounty = new CityZipCounty(city, zipcode, county);
 
 				if (counter % 10 == 0) {
-					bucket1.add(zipcode);
+					bucket1.add(cityZipCounty);
 				} else if (counter % 10 == 1) {
-					bucket2.add(zipcode);
+					bucket2.add(cityZipCounty);
 				} else if (counter % 10 == 2) {
-					bucket3.add(zipcode);
+					bucket3.add(cityZipCounty);
 				} else if (counter % 10 == 3) {
-					bucket4.add(zipcode);
+					bucket4.add(cityZipCounty);
 				} else if (counter % 10 == 4) {
-					bucket5.add(zipcode);
+					bucket5.add(cityZipCounty);
 				} else if (counter % 10 == 5) {
-					bucket6.add(zipcode);
+					bucket6.add(cityZipCounty);
 				} else if (counter % 10 == 6) {
-					bucket7.add(zipcode);
+					bucket7.add(cityZipCounty);
 				} else if (counter % 10 == 7) {
-					bucket8.add(zipcode);
+					bucket8.add(cityZipCounty);
 				} else if (counter % 10 == 8) {
-					bucket9.add(zipcode);
+					bucket9.add(cityZipCounty);
 				} else if (counter % 10 == 9) {
-					bucket10.add(zipcode);
+					bucket10.add(cityZipCounty);
 //				} else if (counter % 16 == 10) {
-//					bucket11.add(zipcode);
+//					bucket11.add(cityZipCounty);
 //				} else if (counter % 16 == 11) {
-//					bucket12.add(zipcode);
+//					bucket12.add(cityZipCounty);
 //				} else if (counter % 16 == 12) {
-//					bucket13.add(zipcode);
+//					bucket13.add(cityZipCounty);
 //				} else if (counter % 16 == 13) {
-//					bucket14.add(zipcode);
+//					bucket14.add(cityZipCounty);
 //				} else if (counter % 16 == 14) {
-//					bucket15.add(zipcode);
+//					bucket15.add(cityZipCounty);
 //				} else if (counter % 16 == 15) {
-//					bucket16.add(zipcode);
+//					bucket16.add(cityZipCounty);
 				}
 				++counter;
 			}
