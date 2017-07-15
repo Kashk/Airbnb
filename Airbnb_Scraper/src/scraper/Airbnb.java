@@ -4,6 +4,8 @@ import java.sql.Timestamp;
 
 public class Airbnb {
 	private int _zipcode;
+	private String _city;
+	private String _state;
 	private int _averagePrice;
 	private int _month;
 	private int _year;
@@ -13,6 +15,8 @@ public class Airbnb {
 	
 	public Airbnb() {
 		_zipcode = -1;
+		_city = "";
+		_state = "";
 		_averagePrice = -1;
 		_month = -1;
 		_year = -1;
@@ -31,6 +35,25 @@ public class Airbnb {
 		}
 	}
 	
+	public String getCity() {
+		return _city;
+	}
+	
+	public void setCity(String value) {
+		if (!_city.equals(value)) {
+			_city = value;
+		}
+	}
+	
+	public String getState() {
+		return _state;
+	}
+	
+	public void setState(String value) {
+		if (!_state.equals(value)) {
+			_state = value;
+		}
+	}
 	public int getAveragePrice() {
 		return _averagePrice;
 	}
@@ -92,6 +115,8 @@ public class Airbnb {
 	
 	public void print() {
 		System.out.println("Zipcode: " + getZipcode());
+		System.out.println("City: " + getCity());
+		System.out.println("State: " + getState());
 		System.out.println("Average Price: " + getAveragePrice());
 		System.out.println("Month: " + getMonth());
 		System.out.println("Year: " + getYear());

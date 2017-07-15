@@ -16,6 +16,7 @@ import org.apache.commons.io.FileUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.DataNode;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 public class Scraper {
@@ -132,7 +133,7 @@ public class Scraper {
 
 					for (File textFile : textFiles) {
 						if (textFile.isFile() && textFile.getName().endsWith(".txt")) {
-							parseAndSaveDataFromFile(textFile);
+							parseAndSaveDataFromFile(textFile, state);
 						}
 					}
 				}
@@ -151,43 +152,50 @@ public class Scraper {
 	 * @return
 	 * @desc Parses file<File> to get airbnb data and saves data to database
 	 */
-	public static void parseAndSaveDataFromFile(File file) throws Exception {
+	public static void parseAndSaveDataFromFile(File file, String state) throws Exception {
 		String fileName = file.getName();
 		System.out.println("Parsing through file " + fileName);
 
 		String[] fileNameParts = fileName.split("_");
-		if (fileNameParts.length != 3) {
+		if (fileNameParts.length != 4) {
 			System.out.println("ERROR: FILE NAME INCONSISTENT.");
 			return;
 		} else {
 			int zipcode = convertToInt(fileNameParts[0]);
-			int month = convertToInt(fileNameParts[1]);
-			int year = convertToInt(fileNameParts[2]);
-
-			Calendar calendar = new GregorianCalendar(year, month - 1, 1);
-			int numDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
-			String checkInDate = year + "-" + month + "-01";
-			String checkOutDate = year + "-" + month + "-" + numDays;
-
-			String url = "https://www.airbnb.com/s/" + zipcode + "/homes?checkin=" + checkInDate + "&checkout="
-					+ checkOutDate;
-
+			String city = fileNameParts[1]; 
+			int month = convertToInt(fileNameParts[2]);
+			int year = convertToInt(fileNameParts[3]);
+			
 			String pageSource = FileUtils.readFileToString(file, "UTF-8");
 			Document document = Jsoup.parse(pageSource);
-
-			Airbnb airbnb = new Airbnb();
-			airbnb.setCrawlTime(getCurrentTimestamp());
-			airbnb.setZipcode(zipcode);
-			airbnb.setUrl(url);
-			airbnb.setMonth(month);
-			airbnb.setYear(year);
-
-			airbnb.setAveragePrice(getAveragePriceFromDocumentComments(document));
-			airbnb.setIsMonthlyPriceType(foundMonthlyPriceTypeFromDocumentComments(document));
 			
-			airbnb.print();
-			
-			saveAirbnbToDatabase(airbnb);
+			if (isCorrectPageSource(city, state, pageSource)) {
+				System.out.println("File " + fileName + " contains correct page source.");
+				Calendar calendar = new GregorianCalendar(year, month - 1, 1);
+				int numDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+				String checkInDate = year + "-" + month + "-01";
+				String checkOutDate = year + "-" + month + "-" + numDays;
+				String url = "https://www.airbnb.com/s/" + zipcode + "/homes?checkin=" + checkInDate + "&checkout="
+						+ checkOutDate;
+				String modifiedCity = city.replaceAll("-", " ");
+
+				Airbnb airbnb = new Airbnb();
+				airbnb.setCrawlTime(getCurrentTimestamp());
+				airbnb.setZipcode(zipcode);
+				airbnb.setCity(modifiedCity);
+				airbnb.setUrl(url);
+				airbnb.setMonth(month);
+				airbnb.setYear(year);
+
+				airbnb.setAveragePrice(getAveragePriceFromDocumentComments(document));
+				airbnb.setIsMonthlyPriceType(foundMonthlyPriceTypeFromDocumentComments(document));
+				
+				airbnb.print();
+				
+				saveAirbnbToDatabase(airbnb);
+			} else {
+				System.out.println("File " + fileName + " contains incorrect page source.");
+			}
 		}
 		System.out.println("Finished parsing " + fileName);
 	}
@@ -271,24 +279,28 @@ public class Scraper {
 	public static void saveAirbnbToDatabase(Airbnb airbnb) throws Exception {
 		System.out.println("Entered saveAirbnbToDatabase");
 
-		String sqlStatement = "INSERT INTO airbnb(zipcode, average_price, month, year, url, crawl_time) VALUES(?,?,?,?,?,?)";
+		String sqlStatement = "INSERT INTO airbnb2(zipcode, city, state, average_price, month, year, url, crawl_time) VALUES(?,?,?,?,?,?,?,?)";
 		PreparedStatement preparedStatement = _connection.prepareStatement(sqlStatement);
 		// 1
 		preparedStatement.setInt(1, airbnb.getZipcode());
 		// 2
-		if ((airbnb.getAveragePrice() <= 0) || !airbnb.isMonthlyPriceType()) {
-			preparedStatement.setNull(2, java.sql.Types.INTEGER);
-		} else {
-			preparedStatement.setInt(2, airbnb.getAveragePrice());
-		}
+		preparedStatement.setString(2, airbnb.getCity());
 		// 3
-		preparedStatement.setInt(3, airbnb.getMonth());
+		preparedStatement.setString(3, airbnb.getState());
 		// 4
-		preparedStatement.setInt(4, airbnb.getYear());
+		if ((airbnb.getAveragePrice() <= 0) || !airbnb.isMonthlyPriceType()) {
+			preparedStatement.setNull(4, java.sql.Types.INTEGER);
+		} else {
+			preparedStatement.setInt(4, airbnb.getAveragePrice());
+		}
 		// 5
-		preparedStatement.setString(5, airbnb.getUrl());
+		preparedStatement.setInt(5, airbnb.getMonth());
 		// 6
-		preparedStatement.setTimestamp(6, airbnb.getCrawlTime());
+		preparedStatement.setInt(6, airbnb.getYear());
+		// 7
+		preparedStatement.setString(7, airbnb.getUrl());
+		// 8
+		preparedStatement.setTimestamp(8, airbnb.getCrawlTime());
 		preparedStatement.executeUpdate();
 		preparedStatement.close();
 	}
@@ -315,6 +327,28 @@ public class Scraper {
 			return Integer.parseInt(filteredValue);
 		} else {
 			return 0;
+		}
+	}
+	
+	/**
+	 * @title isCorrectPageSource
+	 * @param city<String>,
+	 *            state<String>, pageSource<String>
+	 * @return True if page source pertains to correct city, state. False
+	 *         otherwise.
+	 */
+	public static boolean isCorrectPageSource(String city, String state, String pageSource) {
+		Document document = Jsoup.parse(pageSource);
+		Elements metaLinks = document.select("meta[id=english-canonical-url]");
+
+		if (metaLinks.size() > 0) {
+			Element metaLink = metaLinks.first();
+			String stringToCheck = metaLink.toString();
+			String searchString = city + "--" + state + "?";
+			System.out.println("SearchString: " + searchString);
+			return stringToCheck.contains(searchString);
+		} else {
+			return false;
 		}
 	}
 

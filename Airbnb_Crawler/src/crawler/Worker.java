@@ -17,7 +17,9 @@ import org.apache.commons.io.FileUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.DataNode;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 
 public class Worker implements Runnable {
@@ -28,10 +30,10 @@ public class Worker implements Runnable {
 	int _month;
 	int _year;
 	String _proxyAddress;
-	HtmlUnitDriver _driver;
+	WebDriver _driver;
 
-	public Worker(String name, String state, ArrayList<CityZipCounty> cityZipcodes, int month, int year, HtmlUnitDriver driver,
-			String proxyAddress) {
+	public Worker(String name, String state, ArrayList<CityZipCounty> cityZipcodes, int month, int year,
+			WebDriver driver, String proxyAddress) {
 		_name = name;
 		_state = state;
 		_cityZipCounties = cityZipcodes;
@@ -51,7 +53,7 @@ public class Worker implements Runnable {
 				String city = _cityZipCounties.get(count).getCity();
 				String zipcode = _cityZipCounties.get(count).getZipcode();
 				String county = _cityZipCounties.get(count).getCounty();
-				
+
 				crawlZipcode(city, zipcode, county);
 				System.out.println(_cityZipCounties.size() - count - 1 + " zipcodes remaining.");
 			}
@@ -70,7 +72,8 @@ public class Worker implements Runnable {
 
 	/**
 	 * @title crawlZipcode
-	 * @param city<String>, zipcode<String>
+	 * @param city<String>,
+	 *            zipcode<String>
 	 * @return
 	 * @desc Extracts airbnb's average-price/month for zipcode for month<int>,
 	 *       year<int> and stores extracted data into database.
@@ -83,9 +86,9 @@ public class Worker implements Runnable {
 			int numDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
 			String checkInDate = _year + "-" + _month + "-01";
 			String checkOutDate = _year + "-" + _month + "-" + numDays;
-			String searchParameter = city + "--" + _state + "--" + county + "--USA";
-			String url = "https://www.airbnb.com/s/" + searchParameter + "/homes?checkin=" + checkInDate + "&checkout="
-					+ checkOutDate;
+			String searchParameter = _state + " " + zipcode + ", United-States";
+//			https://www.airbnb.com/s/AL-35094--United-States/homes?allow_override%5B%5D=&checkin=2017-06-01&checkout=2017-06-30
+			String url = "https://www.airbnb.com/s/" + searchParameter + "/homes?checkin=" + checkInDate + "&checkout=" + checkOutDate;
 			System.out.println(url);
 
 			savePageSourceFromListingUrl(zipcode, city, url);
@@ -134,7 +137,7 @@ public class Worker implements Runnable {
 		System.out.println("Entered savePageSourceFromListingUrl");
 
 		_driver.get(url);
-		Thread.sleep(3500);
+		Thread.sleep(4000);
 		String pageSource = _driver.getPageSource();
 
 		Calendar c = Calendar.getInstance();
@@ -146,7 +149,13 @@ public class Worker implements Runnable {
 		String fileName = zipcode + "_" + modifiedCity + "_" + _month + "_" + _year + ".txt";
 		String directory = "./pagesources/" + yearMonthDirectory + "/" + _state + "/";
 		writeStringToFile(directory, fileName, pageSource);
-		parseAndSaveDataFromPageSource(zipcode, city, url, pageSource);
+
+		if (isCorrectPageSource(city, _state, pageSource)) {
+			System.out.println("[Passed] File checker: " + fileName);
+			parseAndSaveDataFromPageSource(zipcode, city, url, pageSource);
+		} else {
+			System.out.println("[Failed] File checker: " + fileName);
+		}
 	}
 
 	/**
@@ -170,7 +179,8 @@ public class Worker implements Runnable {
 	 * @return
 	 * @desc Parses file<File> to get airbnb data and saves data to database
 	 */
-	public void parseAndSaveDataFromPageSource(String zipcode, String city, String url, String pageSource) throws Exception {
+	public void parseAndSaveDataFromPageSource(String zipcode, String city, String url, String pageSource)
+			throws Exception {
 		Document document = Jsoup.parse(pageSource);
 
 		Airbnb airbnb = new Airbnb();
@@ -184,17 +194,18 @@ public class Worker implements Runnable {
 
 		airbnb.setAveragePrice(getAveragePriceFromDocumentComments(document));
 		airbnb.setIsMonthlyPriceType(foundMonthlyPriceTypeFromDocumentComments(document));
-		
+
 		airbnb.print();
 
 		saveAirbnbToDatabase(airbnb);
 		System.out.println("Finished parsing " + zipcode);
 	}
-	
+
 	/**
 	 * @title foundMonthlyPriceTypeFromDocumentComments
 	 * @param document<Node>
-	 * @return true if "price_type":"monthly" found in document<Node>, false otherwise
+	 * @return true if "price_type":"monthly" found in document<Node>, false
+	 *         otherwise
 	 */
 	private boolean foundMonthlyPriceTypeFromDocumentComments(Document document) {
 		boolean priceType = false;
@@ -206,7 +217,7 @@ public class Worker implements Runnable {
 				priceType = foundPriceTypeMonthlyFromText(scriptDataNodes.get(j).getWholeData());
 			}
 		}
-		
+
 		return priceType;
 	}
 
@@ -236,7 +247,7 @@ public class Worker implements Runnable {
 	 */
 	public boolean foundPriceTypeMonthlyFromText(String text) {
 		String searchText = "\"price_type\":\"monthly\"";
-		
+
 		return text.contains(searchText);
 	}
 
@@ -261,6 +272,31 @@ public class Worker implements Runnable {
 	}
 
 	/**
+	 * @title isCorrectPageSource
+	 * @param city<String>,
+	 *            state<String>, pageSource<String>
+	 * @return True if page source pertains to correct city, state. False
+	 *         otherwise.
+	 */
+	public static boolean isCorrectPageSource(String city, String state, String pageSource) {
+		Document document = Jsoup.parse(pageSource);
+		// meta id="english-canonical-url"
+		// content="/s/Moody--AL?sublets=monthly">
+		Elements metaLinks = document.select("meta[id=english-canonical-url]");
+
+		if (metaLinks.size() > 0) {
+			Element metaLink = metaLinks.first();
+			String stringToCheck = metaLink.toString();
+			String modifiedCity = city.replaceAll(" ", "-");
+			String searchString = modifiedCity + "--" + state + "?";
+			System.out.println("SearchString: " + searchString);
+			return stringToCheck.contains(searchString);
+		} else {
+			return false;
+		}
+	}
+
+	/**
 	 * @title saveAirbnbToDatabase
 	 * @param airbnb<Airbnb>
 	 * @throws Exception
@@ -269,14 +305,14 @@ public class Worker implements Runnable {
 	public void saveAirbnbToDatabase(Airbnb airbnb) throws Exception {
 		System.out.println("Entered saveAirbnbToDatabase");
 
-		String sqlStatement = "INSERT INTO airbnb2(zipcode, city, state, average_price, month, year, url, crawl_time) VALUES(?,?,?,?,?,?,?,?)";
+		String sqlStatement = "INSERT INTO airbnb(zipcode, city, state, average_price, month, year, url, crawl_time) VALUES(?,?,?,?,?,?,?,?)";
 		PreparedStatement preparedStatement = _connection.prepareStatement(sqlStatement);
 		// 1
 		preparedStatement.setInt(1, airbnb.getZipcode());
 		// 2
-		preparedStatement.setString(2,  airbnb.getCity());
+		preparedStatement.setString(2, airbnb.getCity());
 		// 3
-		preparedStatement.setString(3,  airbnb.getState());
+		preparedStatement.setString(3, airbnb.getState());
 		// 4
 		if ((airbnb.getAveragePrice() <= 0) || !airbnb.isMonthlyPriceType()) {
 			preparedStatement.setNull(4, java.sql.Types.INTEGER);
@@ -303,13 +339,13 @@ public class Worker implements Runnable {
 	 */
 	private Connection getConnection() throws ClassNotFoundException, SQLException {
 		Class.forName("com.mysql.jdbc.Driver");
-		String urldb = "jdbc:mysql://localhost/homeDB";
-		String user = "jonathan";
-		String password = "password";
+//		String urldb = "jdbc:mysql://localhost/homeDB";
+//		String user = "jonathan";
+//		String password = "password";
 
-		// String urldb = "jdbc:mysql://localhost/databaselabs";
-		// String user = "root";
-		// String password = "A895784e1!";
+		String urldb = "jdbc:mysql://localhost/databaselabs";
+		String user = "root";
+		String password = "A895784e1!";
 		Connection connection = DriverManager.getConnection(urldb, user, password);
 		return connection;
 	}

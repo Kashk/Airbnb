@@ -19,7 +19,7 @@ CREATE TABLE airbnb2 (
 	year int(10) NOT NULL,
 	url varchar(200) NOT NULL,
 	crawl_time timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-	PRIMARY KEY (zipcode, crawl_time, month, year)
+	PRIMARY KEY (zipcode, city, state, crawl_time, month, year)
 );
 
 INSERT INTO airbnb2 SELECT * FROM airbnb;
@@ -28,6 +28,10 @@ DELETE a2
 FROM airbnb3 as a1
 JOIN airbnb3 as a2
 ON a1.zipcode = a2.zipcode AND a1.month = a2.month AND a1.year = a2.year AND a1.crawl_time > a2.crawl_time;
+
+DELETE *
+FROM fsbo_home_5_2017 as fsbo
+WHERE fsbo.crawl.crawl_time > '2017-6-19 00:00:00';
 
 SELECT COUNT(*)
 FROM airbnb as a1
